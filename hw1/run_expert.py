@@ -10,11 +10,13 @@ Author of this script and included expert policies: Jonathan Ho (hoj@openai.com)
 """
 
 import pickle
-import tensorflow as tf
+
 import numpy as np
-import tf_util
-import gym
+import tensorflow as tf
+
 import load_policy
+import tf_util
+
 
 def main():
     import argparse
@@ -25,6 +27,7 @@ def main():
     parser.add_argument("--max_timesteps", type=int)
     parser.add_argument('--num_rollouts', type=int, default=20,
                         help='Number of expert roll outs')
+    parser.add_argument("--output", type=str, help="Output file to save the roll-out data")
     args = parser.parse_args()
 
     print('loading and building expert policy')
@@ -48,7 +51,7 @@ def main():
             totalr = 0.
             steps = 0
             while not done:
-                action = policy_fn(obs[None,:])
+                action = policy_fn(obs[None, :])
                 observations.append(obs)
                 actions.append(action)
                 obs, r, done, _ = env.step(action)
@@ -56,7 +59,7 @@ def main():
                 steps += 1
                 if args.render:
                     env.render()
-                if steps % 100 == 0: print("%i/%i"%(steps, max_steps))
+                if steps % 100 == 0: print("%i/%i" % (steps, max_steps))
                 if steps >= max_steps:
                     break
             returns.append(totalr)
@@ -65,8 +68,13 @@ def main():
         print('mean return', np.mean(returns))
         print('std of return', np.std(returns))
 
-        expert_data = {'observations': np.array(observations),
-                       'actions': np.array(actions)}
+        if args.output:
+            expert_data = {'observations': np.array(observations),
+                           'actions': np.array(actions),
+                           'returns': returns}
+
+            pickle.dump(expert_data, open(args.output, 'wb'))
+
 
 if __name__ == '__main__':
     main()
