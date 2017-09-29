@@ -173,13 +173,13 @@ def train_PG(exp_name='',
 
     if discrete:
         sy_logits_na = build_mlp(sy_ob_no, ac_dim, "discrete_mlp", n_layers=n_layers, size=size, activation=tf.nn.relu, output_activation=None)
-        sy_sampled_ac = tf.multinomial(sy_logits_na, num_samples=1)  # Hint: Use the tf.multinomial op
-        sy_logprob_n = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=sy_ac_na, logits=sy_logits_na)
+        sy_sampled_ac = tf.multinomial(sy_logits_na, num_samples=1)[:, 0]  # Hint: Use the tf.multinomial op
+        sy_logprob_n = -tf.nn.sparse_softmax_cross_entropy_with_logits(labels=sy_ac_na, logits=sy_logits_na)
 
     else:
         sy_mean = build_mlp(sy_ob_no, ac_dim, "cont_mlp", n_layers=n_layers, size=size, activation=tf.nn.relu, output_activation=None)
-        sy_logstd = tf.get_variable("logstd", shape=[1])  # logstd should just be a trainable variable, not a network output.
-        z = tf.random_normal(shape=[None, ac_dim])
+        sy_logstd = tf.get_variable("logstd", shape=[ac_dim])  # logstd should just be a trainable variable, not a network output.
+        z = tf.random_normal((tf.shape(sy_mean)[0], ac_dim), name="z")  # Cannot pass None as shape param to random_normal, so use `tf.shape(sy_mean)[0]`
         sy_sampled_ac = sy_mean + tf.exp(sy_logstd) * z
         sy_logprob_n = -0.5 * (ac_dim * np.log(2 * np.pi).astype(np.float32) + 2 * tf.reduce_sum(sy_logstd, axis=-1) +
                                tf.reduce_sum(
@@ -190,7 +190,7 @@ def train_PG(exp_name='',
     # Loss Function and Training Operation
     # ========================================================================================#
 
-    loss = tf.reduce_mean(sy_logprob_n * sy_adv_n)  # Loss function that we'll differentiate to get the policy gradient.
+    loss = tf.reduce_mean(-sy_logprob_n * sy_adv_n)  # Loss function that we'll differentiate to get the policy gradient.
     update_op = tf.train.AdamOptimizer(learning_rate).minimize(loss)
 
     # ========================================================================================#
@@ -207,8 +207,9 @@ def train_PG(exp_name='',
             size=size))
         # Define placeholders for targets, a loss function and an update op for fitting a 
         # neural network baseline. These will be used to fit the neural network baseline. 
-        # YOUR_CODE_HERE
-        # baseline_update_op = TODO
+        sy_baseline_targets_n = tf.placeholder(shape=[None], name="nn_baseline_targets", dtype=tf.float32)
+        baseline_loss = tf.nn.l2_loss(baseline_prediction - sy_baseline_targets_n)
+        baseline_update_op = tf.train.AdamOptimizer(learning_rate).minimize(baseline_loss)
 
     # ========================================================================================#
     # Tensorflow Engineering: Config, Session, Variable initialization
@@ -244,8 +245,8 @@ def train_PG(exp_name='',
                 obs.append(ob)
 
                 ac = sess.run(sy_sampled_ac, feed_dict={sy_ob_no: ob[None]})
+                ac = ac[0]
 
-                ac = np.squeeze(ac[0])
                 acs.append(ac)
                 ob, rew, done, _ = env.step(ac)
                 rewards.append(rew)
@@ -313,7 +314,7 @@ def train_PG(exp_name='',
             q_is = []
             for path in paths:
                 r_i = path['reward']
-                q_is.append([np.sum(np.power(gamma, np.arange(len(r_i))) * r_i, axis=-1)])
+                q_is.append(np.ones_like(r_i) * np.sum(np.power(gamma, np.arange(len(r_i))) * r_i, axis=-1))
         else:
             #   Case 2: reward-to-go PG
             #
@@ -326,7 +327,6 @@ def train_PG(exp_name='',
             q_is = []
             for path in paths:
                 r_i = path['reward']
-                # Slow version
                 q_is.append([np.sum([np.power(gamma, t_p - t) * r_i[t_p] for t_p in range(t, len(r_i))]) for t in range(len(r_i))])
 
         q_n = np.concatenate(q_is)
@@ -345,9 +345,12 @@ def train_PG(exp_name='',
             # (mean and std) of the current or previous batch of Q-values. (Goes with Hint
             # #bl2 below.)
 
-            # b_n = TODO
-            # adv_n = q_n - b_n
-            pass
+            b_n = sess.run(baseline_prediction, feed_dict={sy_ob_no: ob_no})
+
+            b_n -= (np.mean(b_n, axis=0) - np.mean(q_n, axis=0))  # Match q_n mean
+            b_n /= (np.std(b_n, axis=0) / np.std(q_n, axis=0))  # Match q_n std
+
+            adv_n = q_n - b_n
         else:
             adv_n = q_n.copy()
 
@@ -377,8 +380,14 @@ def train_PG(exp_name='',
             # Hint #bl2: Instead of trying to target raw Q-values directly, rescale the 
             # targets to have mean zero and std=1. (Goes with Hint #bl1 above.)
 
-            # YOUR_CODE_HERE
-            pass
+            baseline_inputs = ob_no
+            baseline_targets = []
+            for path in paths:
+                baseline_targets.append([np.sum(path['reward'][i:]) for i in range(len(path['reward']))])
+            baseline_targets = np.concatenate(baseline_targets)
+
+            for i in range(5):
+                sess.run(baseline_update_op, feed_dict={sy_ob_no: baseline_inputs, sy_baseline_targets_n: baseline_targets})
 
         # ====================================================================================#
         #                           ----------SECTION 4----------
