@@ -409,8 +409,7 @@ def train_PG(exp_name='',
         ep_lengths = [pathlength(path) for path in paths]
         logz.log_tabular("Time", time.time() - start)
         logz.log_tabular("Iteration", itr)
-        logz.log_tabular("LossBefore", loss_before)
-        logz.log_tabular("LossAfter", loss_after)
+        logz.log_tabular("LossDelta", loss_before - loss_after)
         logz.log_tabular("AverageReturn", np.mean(returns))
         logz.log_tabular("StdReturn", np.std(returns))
         logz.log_tabular("MaxReturn", np.max(returns))
