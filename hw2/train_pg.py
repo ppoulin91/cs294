@@ -1,4 +1,5 @@
 import inspect
+import json
 import os
 import time
 from multiprocessing import Process
@@ -173,15 +174,15 @@ def train_PG(exp_name='',
 
     if discrete:
         sy_logits_na = build_mlp(sy_ob_no, ac_dim, "discrete_mlp", n_layers=n_layers, size=size, activation=tf.nn.relu, output_activation=None)
-        sy_sampled_ac = tf.multinomial(sy_logits_na, num_samples=1)[:, 0]  # Hint: Use the tf.multinomial op
+        sy_sampled_ac = tf.identity(tf.multinomial(sy_logits_na, num_samples=1)[:, 0], name="sampled_ac")  # Hint: Use the tf.multinomial op
         sy_logprob_n = -tf.nn.sparse_softmax_cross_entropy_with_logits(labels=sy_ac_na, logits=sy_logits_na)
 
     else:
         sy_mean = build_mlp(sy_ob_no, ac_dim, "cont_mlp", n_layers=n_layers, size=size, activation=tf.nn.relu, output_activation=None)
         sy_logstd = tf.get_variable("logstd", shape=[ac_dim])  # logstd should just be a trainable variable, not a network output.
         z = tf.random_normal((tf.shape(sy_mean)[0], ac_dim), name="z")  # Cannot pass None as shape param to random_normal, so use `tf.shape(sy_mean)[0]`
-        sy_sampled_ac = sy_mean + tf.exp(sy_logstd) * z
-        sy_logprob_n = tf.contrib.distributions.MultivariateNormalDiag(sy_mean, tf.exp(sy_logstd)**2).log_prob(sy_ac_na)
+        sy_sampled_ac = tf.identity(sy_mean + tf.exp(sy_logstd) * z, name="sampled_ac")
+        sy_logprob_n = tf.contrib.distributions.MultivariateNormalDiag(sy_mean, tf.exp(sy_logstd) ** 2).log_prob(sy_ac_na)
 
     # ========================================================================================#
     #                           ----------SECTION 4----------
@@ -218,6 +219,7 @@ def train_PG(exp_name='',
     sess = tf.Session(config=tf_config)
     sess.__enter__()  # equivalent to `with sess:`
     tf.global_variables_initializer().run()  # pylint: disable=E1101
+    saver = tf.train.Saver()
 
     # ========================================================================================#
     # Training Loop
@@ -379,6 +381,8 @@ def train_PG(exp_name='',
             # targets to have mean zero and std=1. (Goes with Hint #bl1 above.)
 
             baseline_inputs = ob_no
+
+            # Targets should be \hat{V}(s) = r + \gamma \hat{V}(s')
             baseline_targets = q_n
 
             baseline_targets -= np.mean(baseline_targets, axis=0)
@@ -420,6 +424,24 @@ def train_PG(exp_name='',
         logz.log_tabular("TimestepsSoFar", total_timesteps)
         logz.dump_tabular()
         logz.pickle_tf_vars()
+
+        saver.save(sess, save_path=os.path.join(logdir, "model.ckpt"))
+
+        hyperparams = {'env_name': env_name,
+                       'discount': gamma,
+                       'discrete': discrete,
+                       'n_iter': n_iter,
+                       'batch_size': min_timesteps_per_batch,
+                       'learning_rate': learning_rate,
+                       'seed': seed,
+                       'n_layers': n_layers,
+                       'size': size,
+                       'reward_to_go': reward_to_go,
+                       'normalize_advantages': normalize_advantages,
+                       'nn_baseline': nn_baseline}
+
+        with open(os.path.join(logdir, "hyperparams.json"), 'w') as json_file:
+            json.dump(hyperparams, json_file)
 
 
 def main():
