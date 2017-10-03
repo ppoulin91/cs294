@@ -379,10 +379,10 @@ def train_PG(exp_name='',
             # targets to have mean zero and std=1. (Goes with Hint #bl1 above.)
 
             baseline_inputs = ob_no
-            baseline_targets = []
-            for path in paths:
-                baseline_targets.append([np.sum(path['reward'][i:]) for i in range(len(path['reward']))])
-            baseline_targets = np.concatenate(baseline_targets)
+            baseline_targets = q_n
+
+            baseline_targets -= np.mean(baseline_targets, axis=0)
+            baseline_targets /= np.std(baseline_targets, axis=0)
 
             for i in range(5):
                 sess.run(baseline_update_op, feed_dict={sy_ob_no: baseline_inputs, sy_baseline_targets_n: baseline_targets})
