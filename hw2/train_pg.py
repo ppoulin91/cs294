@@ -182,7 +182,7 @@ def train_PG(exp_name='',
         sy_logstd = tf.get_variable("logstd", shape=[ac_dim])  # logstd should just be a trainable variable, not a network output.
         z = tf.random_normal((tf.shape(sy_mean)[0], ac_dim), name="z")  # Cannot pass None as shape param to random_normal, so use `tf.shape(sy_mean)[0]`
         sy_sampled_ac = tf.identity(sy_mean + tf.exp(sy_logstd) * z, name="sampled_ac")
-        sy_logprob_n = tf.contrib.distributions.MultivariateNormalDiag(sy_mean, tf.exp(sy_logstd) ** 2).log_prob(sy_ac_na)
+        sy_logprob_n = tf.contrib.distributions.MultivariateNormalDiag(sy_mean, tf.exp(sy_logstd)).log_prob(sy_ac_na)
 
     # ========================================================================================#
     #                           ----------SECTION 4----------
