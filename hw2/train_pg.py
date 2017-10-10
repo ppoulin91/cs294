@@ -70,7 +70,8 @@ def train_PG(exp_name='',
              seed=0,
              # network arguments
              n_layers=1,
-             size=32
+             size=32,
+             multi_step=1
              ):
     start = time.time()
 
@@ -407,7 +408,8 @@ def train_PG(exp_name='',
         feed_dict = {sy_ob_no: ob_no, sy_ac_na: ac_na, sy_adv_n: q_n}
 
         loss_before = sess.run(loss, feed_dict=feed_dict)
-        sess.run(update_op, feed_dict=feed_dict)  # Update
+        for i in range(multi_step):
+            sess.run(update_op, feed_dict=feed_dict)  # Update
         loss_after = sess.run(loss, feed_dict=feed_dict)
 
         # Log diagnostics
@@ -440,7 +442,8 @@ def train_PG(exp_name='',
                        'size': size,
                        'reward_to_go': reward_to_go,
                        'normalize_advantages': normalize_advantages,
-                       'nn_baseline': nn_baseline}
+                       'nn_baseline': nn_baseline,
+                       'multi_step': multi_step}
 
         with open(os.path.join(logdir, "hyperparams.json"), 'w') as json_file:
             json.dump(hyperparams, json_file)
@@ -464,6 +467,7 @@ def main():
     parser.add_argument('--n_experiments', '-e', type=int, default=1)
     parser.add_argument('--n_layers', '-l', type=int, default=1)
     parser.add_argument('--size', '-s', type=int, default=32)
+    parser.add_argument('--multi_step', type=int, default=1)
     args = parser.parse_args()
 
     if not (os.path.exists('data')):
@@ -495,7 +499,8 @@ def main():
                 nn_baseline=args.nn_baseline,
                 seed=seed,
                 n_layers=args.n_layers,
-                size=args.size
+                size=args.size,
+                multi_step=args.multi_step
             )
 
         # Awkward hacky process runs, because Tensorflow does not like
