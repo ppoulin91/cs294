@@ -181,7 +181,7 @@ def train_PG(exp_name='',
     else:
         sy_mean = build_mlp(sy_ob_no, ac_dim, "cont_mlp", n_layers=n_layers, size=size, activation=tf.nn.relu, output_activation=None)
         sy_logstd = tf.get_variable("logstd", shape=[ac_dim], dtype=tf.float32)  # logstd should just be a trainable variable, not a network output.
-        sy_std = tf.exp(sy_logstd)
+        sy_std = tf.exp(sy_logstd) + 1e-4
 
         z = tf.random_normal((tf.shape(sy_mean)[0], ac_dim), name="z")  # Cannot pass None as shape param to random_normal, so use `tf.shape(sy_mean)[0]`
         sy_sampled_ac = tf.identity(sy_mean + sy_std * z, name="sampled_ac")
@@ -351,7 +351,7 @@ def train_PG(exp_name='',
             b_n = sess.run(baseline_prediction, feed_dict={sy_ob_no: ob_no})
 
             b_n -= (np.mean(b_n, axis=0) - np.mean(q_n, axis=0))  # Match q_n mean
-            b_n /= (np.std(b_n, axis=0) / (np.std(q_n, axis=0) + 1e-4))  # Match q_n std
+            b_n /= (np.std(b_n, axis=0) / (np.std(q_n, axis=0) + 1e-4) + 1e-4)  # Match q_n std
 
             adv_n = q_n - b_n
         else:
