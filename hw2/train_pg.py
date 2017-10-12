@@ -351,7 +351,7 @@ def train_PG(exp_name='',
             b_n = sess.run(baseline_prediction, feed_dict={sy_ob_no: ob_no})
 
             b_n -= (np.mean(b_n, axis=0) - np.mean(q_n, axis=0))  # Match q_n mean
-            b_n /= (np.std(b_n, axis=0) / np.std(q_n, axis=0))  # Match q_n std
+            b_n /= (np.std(b_n, axis=0) / (np.std(q_n, axis=0) + 1e-4))  # Match q_n std
 
             adv_n = q_n - b_n
         else:
@@ -366,7 +366,7 @@ def train_PG(exp_name='',
             # On the next line, implement a trick which is known empirically to reduce variance
             # in policy gradient methods: normalize adv_n to have mean zero and std=1. 
             adv_n -= np.mean(adv_n, axis=0)
-            adv_n /= np.std(adv_n, axis=0)
+            adv_n /= (np.std(adv_n, axis=0) + 1e-4)
 
         # ====================================================================================#
         #                           ----------SECTION 5----------
@@ -389,7 +389,7 @@ def train_PG(exp_name='',
             baseline_targets = q_n
 
             baseline_targets -= np.mean(baseline_targets, axis=0)
-            baseline_targets /= np.std(baseline_targets, axis=0)
+            baseline_targets /= (np.std(baseline_targets, axis=0) + 1e-4)
 
             for i in range(5):
                 sess.run(baseline_update_op, feed_dict={sy_ob_no: baseline_inputs, sy_baseline_targets_n: baseline_targets})
