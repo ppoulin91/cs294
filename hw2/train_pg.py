@@ -391,7 +391,7 @@ def train_PG(exp_name='',
             baseline_targets -= np.mean(baseline_targets, axis=0)
             baseline_targets /= (np.std(baseline_targets, axis=0) + 1e-4)
 
-            for i in range(5):
+            for i in range(10):
                 sess.run(baseline_update_op, feed_dict={sy_ob_no: baseline_inputs, sy_baseline_targets_n: baseline_targets})
 
         # ====================================================================================#
