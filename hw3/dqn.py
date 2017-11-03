@@ -4,6 +4,7 @@ from collections import namedtuple
 
 import gym.spaces
 import tensorflow                as tf
+import time
 
 import dqn_utils
 from dqn_utils import *
@@ -169,6 +170,8 @@ def learn(env,
     last_obs = env.reset()
     LOG_EVERY_N_STEPS = 10000
 
+    exp_name = 'dqn_{}_{}'.format(env.spec._env_name, time.strftime("%Y%m%d-%H%M%S"))
+
     for t in itertools.count():
         ### 1. Check stopping criterion
         if stopping_criterion is not None and stopping_criterion(env, t):
@@ -300,3 +303,6 @@ def learn(env,
             print("exploration %f" % exploration.value(t))
             print("learning_rate %f" % optimizer_spec.lr_schedule.value(t))
             sys.stdout.flush()
+
+            with open('log_{}.txt'.format(exp_name), 'a') as f:
+                print('{:<7} {:<8.4f} {:<8.4f}'.format(t, mean_episode_reward, best_mean_episode_reward), file=f)
